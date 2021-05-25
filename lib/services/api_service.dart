@@ -10,6 +10,8 @@ class APIService with ChangeNotifier {
 
   List<FirmwareDetail> firmwareList = [];
 
+  //TODO: Convert api service to dio
+
   static const _host = 'https://samfw.herokuapp.com';
 
   Future<void> selectAPI({String? input}) async {
@@ -35,6 +37,10 @@ class APIService with ChangeNotifier {
       notifyListeners();
       return firmwareList = _fwList;
     }
+    print(response.body);
+    print(response.reasonPhrase);
+    print(response.statusCode);
+    // TODO: Add exception if no firmware found
     throw response;
   }
 

@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider(create: (context) => APIService()),
+        ChangeNotifierProvider(create: (context) => APIService()),
         Provider(create: (context) => LoadData()),
         Provider(create: (context) => Firmware()),
       ],
