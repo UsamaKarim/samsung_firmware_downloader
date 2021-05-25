@@ -6,7 +6,18 @@ import 'package:samsung_firmware_downloader/models/firmware_info.dart';
 
 class APIService with ChangeNotifier {
   // Check for working API backend
-  bool? isWorking;
+  bool isWorking = false;
+  bool isLoading = false;
+
+  set _isLoading(bool value) {
+    isLoading = value;
+    notifyListeners();
+  }
+
+  set _isWorking(bool value) {
+    isWorking = value;
+    notifyListeners();
+  }
 
   List<FirmwareDetail> firmwareList = [];
 
@@ -14,16 +25,23 @@ class APIService with ChangeNotifier {
 
   static const _host = 'https://samfw.herokuapp.com';
 
-  Future<void> selectAPI({String? input}) async {
+  Future<void> selectAPI(String input) async {
+    _isLoading = true;
     const heroku = '.herokuapp.com/openapi.json';
-    final uri = Uri.tryParse('https://samfw$heroku')!;
+    final uri = Uri.tryParse('https://$input$heroku')!;
     final response = await http.get(uri);
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      if (body['info']['title'] == 'SamFetch') {
-        isWorking = true;
-      }
+      _isWorking = body['info']['title'] == 'SamFetch';
+      print('isWorking $isWorking');
+      _isLoading = false;
+      notifyListeners();
+      return;
     }
+    print(response.body);
+    _isWorking = false;
+    _isLoading = false;
+    throw response;
   }
 
   Future<List<FirmwareDetail>> availableFirmware(
@@ -33,14 +51,15 @@ class APIService with ChangeNotifier {
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
       final availableFirmware = Firmware.fromJson(decoded);
-      final _fwList = await _getFirmwareInfo(region, model, availableFirmware);
+      final _firmwareList =
+          await _getFirmwareInfo(region, model, availableFirmware);
       notifyListeners();
-      return firmwareList = _fwList;
+      return firmwareList = _firmwareList;
     }
     print(response.body);
     print(response.reasonPhrase);
     print(response.statusCode);
-    // TODO: Add exception if no firmware found
+
     throw response;
   }
 
@@ -54,11 +73,8 @@ class APIService with ChangeNotifier {
     final response = await http.get(uri);
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      print(decoded);
-      final f = FirmwareDetail.fromJson(decoded);
-      print('Firmware check ${f.filename}');
-
-      return f;
+      final data = FirmwareDetail.fromJson(decoded);
+      return data;
     }
     throw response;
   }

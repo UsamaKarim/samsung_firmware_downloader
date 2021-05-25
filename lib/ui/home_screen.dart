@@ -1,8 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:marquee/marquee.dart';
 import 'package:provider/provider.dart';
 import 'package:samsung_firmware_downloader/providers/firmware.dart';
 import 'package:samsung_firmware_downloader/services/api_service.dart';
+import 'package:samsung_firmware_downloader/services/cache.dart';
 import 'package:samsung_firmware_downloader/services/load_data.dart';
 import 'package:samsung_firmware_downloader/ui/device_list.dart';
 
@@ -14,6 +16,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  String? api;
+  late String? initialValue;
   @override
   void initState() {
     super.initState();
@@ -22,6 +26,23 @@ class _MainScreenState extends State<MainScreen> {
       load.loadCSC(),
       load.loadDevices(),
     ]);
+    initialValue = context.read<Cache>().loadAppName();
+    print(initialValue);
+  }
+
+  Future<void> addAPI(APIService apiService, Cache cache) async {
+    if (api != null) {
+      try {
+        await apiService.selectAPI(api!);
+        if (apiService.isWorking) {
+          await cache.saveAppName(api!);
+        }
+      } on SocketException catch (e) {
+        print(e);
+      } catch (e) {
+        await cache.clearCache();
+      }
+    }
   }
 
   @override
@@ -34,18 +55,25 @@ class _MainScreenState extends State<MainScreen> {
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            TextField(
-              decoration: InputDecoration(
-                  // suffix: Text(),
+            Consumer2<APIService, Cache>(
+              builder: (context, apiService, cache, child) => TextFormField(
+                initialValue: initialValue ?? '',
+                onChanged: (value) => api = value,
+                decoration: InputDecoration(
                   prefixText: 'https://',
+                  suffixIcon: IconButton(
+                      icon: apiService.isLoading
+                          ? CircularProgressIndicator()
+                          : Icon(Icons.done),
+                      onPressed: () async => await addAPI(apiService, cache)),
                   suffixText: '.herokuapp.com',
-                  // prefix: Text(),
                   border: OutlineInputBorder(),
                   hintText: 'samfetch',
-                  labelText: 'Your app name'),
+                  labelText: 'Hosted app name',
+                ),
+              ),
             ),
             SizedBox(height: 8),
-            // RegionCode(),
             RegionCode(),
             SizedBox(height: 8),
             DeviceModel(),
@@ -67,20 +95,27 @@ class AvailableFirmware extends StatefulWidget {
 class _AvailableFirmwareState extends State<AvailableFirmware> {
   @override
   Widget build(BuildContext context) {
-    return Consumer2<APIService, Firmware>(
-      builder: (context, apiService, firmware, child2) => Expanded(
+    return Consumer3<APIService, Firmware, Cache>(
+      builder: (context, apiService, firmware, cache, child) => Expanded(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // TODO: Add loading spinner
             OutlinedButton(
               style: ButtonStyle(),
-              onPressed: () async {
-                await apiService.availableFirmware(
-                  firmware.regionCode!,
-                  firmware.deviceModel!,
-                );
-              },
+              onPressed: cache.loadAppName() != null
+                  ? () async {
+                      try {
+                        await apiService.availableFirmware(
+                          firmware.regionCode!,
+                          firmware.deviceModel!,
+                        );
+                      } catch (e) {
+                        // TODO: Add exception if no firmware found
+                        print(e);
+                      }
+                    }
+                  : null,
               child: Text('Generate'),
             ),
             Flexible(
@@ -91,12 +126,8 @@ class _AvailableFirmwareState extends State<AvailableFirmware> {
                 itemBuilder: (context, index) {
                   final api = apiService.firmwareList[index];
                   return ExpansionTile(
-                    // leading: CircleAvatar(
-                    //   child: Text(api.sizeReadable!),
-                    // ),
                     title: Text(
                       firmware.deviceModel! + ' - ' + firmware.regionCode!,
-                      // softWrap: true,
                     ),
                     subtitle: Text(api.version! + ' - ' + api.sizeReadable!),
                   );
